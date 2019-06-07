@@ -1,0 +1,77 @@
+//buildscript {
+//  repositories {
+//    jcenter()
+//  }
+//  dependencies {
+//    classpath(group: 'org.jfrog.buildinfo', name: 'build-info-extractor-gradle', version: '4.+')
+//  }
+//}
+
+plugins {
+  id "com.jfrog.artifactory" version "4.9.6"
+}
+
+//allprojects {
+//  repositories {
+//    maven {
+//      url "http://localhost:8081/artifactory/jcenter"
+//    }
+//	}
+//}
+
+apply plugin: 'java'
+apply plugin: 'maven-publish'
+apply plugin: 'com.jfrog.artifactory'
+
+repositories {
+	mavenCentral()
+	jcenter()
+}
+
+dependencies {
+	compile group: 'io.github.classgraph', name: 'classgraph', version: '4.4.12'
+	compile group: 'ma.glasnost.orika', name: 'orika-core', version: '1.5.2'
+	compile group: 'org.apache.commons', name: 'commons-text', version: '1.6'
+}
+
+jar {
+	from sourceSets.main.output
+	from sourceSets.main.allJava
+}
+
+def libraryGroupId = 'it.esinware.utility'
+def libraryArtifactId = 'mapping'
+def libraryVersion = '0.0.1'
+
+publishing {
+    publications {
+        jar(MavenPublication) {
+        	from components.java
+          groupId libraryGroupId
+          version libraryVersion
+          artifactId libraryArtifactId
+          //artifact("$buildDir/publications/jar/${artifactId}-release.jar")
+        }
+    }
+}
+
+artifactory {
+    contextUrl = 'http://camerassoes-test.intra.camera.it:8081/artifactory'
+    publish {
+        repository {
+            repoKey = 'Esinware'
+            username = artifactory_username
+            password = artifactory_password
+        }
+        defaults {
+            publications('jar')
+            publishArtifacts = true
+            properties = ['qa.level': 'basic', 'q.os': 'java', 'dev.team': 'core']
+            publishPom = true
+        }
+    }
+}
+
+//artifactoryPublish {
+//	publications(publishing.publications.jar);
+//}
