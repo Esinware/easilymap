@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.function.Consumer;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,16 +14,13 @@ import io.github.classgraph.AnnotationParameterValueList;
 import io.github.classgraph.ClassGraph;
 import io.github.classgraph.ClassInfo;
 import io.github.classgraph.ClassInfoList;
-import io.github.classgraph.FieldInfo;
 import io.github.classgraph.FieldInfoList;
-import io.github.classgraph.FieldInfoList.FieldInfoFilter;
 import io.github.classgraph.ScanResult;
 import ma.glasnost.orika.Converter;
 import ma.glasnost.orika.CustomMapper;
 import ma.glasnost.orika.Mapper;
 import ma.glasnost.orika.MapperFactory;
 import ma.glasnost.orika.impl.DefaultMapperFactory;
-import ma.glasnost.orika.impl.generator.EclipseJdtCompilerStrategy;
 import ma.glasnost.orika.metadata.ClassMapBuilder;
 import ma.glasnost.orika.metadata.FieldMapBuilder;
 import ma.glasnost.orika.metadata.MappingDirection;
@@ -34,16 +30,10 @@ public class BeanMapper {
 	private static Logger logger = LoggerFactory.getLogger(BeanMapper.class);
 	private MapperFactory factory;
 	private ScanResult classes;
-
-	public BeanMapper(Class<?> sourcePackages) {
-		this(sourcePackages.getPackage().getName());
-	}
 	
-	public BeanMapper(String basePackageName) {
+	public BeanMapper() {
 		factory = new DefaultMapperFactory.Builder().build();
 		factory.registerConcreteType(SortedSet.class, TreeSet.class);
-//		factory.registerObjectFactory(new OrganizationFactory(), TypeFactory.valueOf(Organization.class), TypeFactory.valueOf(OrganizationModel.class));
-//		factory.registerObjectFactory(new OrganizationModelFactory(), TypeFactory.valueOf(OrganizationModel.class), TypeFactory.valueOf(Organization.class));
 		classes = new ClassGraph().enableAllInfo().whitelistClasses().scan();
 		registerConverters();
 		init();
@@ -76,22 +66,13 @@ public class BeanMapper {
 				try {
 					ClassMapBuilder<?, ?> builder = factory.classMap(Class.forName(routeClassInfo.getName()), Class.forName(bindingClass.getName()));
 					FieldInfoList fields = routeClassInfo.getDeclaredFieldInfo();
-					fields.filter(new FieldInfoFilter() {
-						
-						@Override
-						public boolean accept(FieldInfo fieldInfo) {
-							return fieldInfo.hasAnnotation(FieldBinding.class.getName());
-						}
-					}).forEach(new Consumer<FieldInfo>() {
-
-						@Override
-						public void accept(FieldInfo t) {
-							AnnotationInfo info = t.getAnnotationInfo(FieldBinding.class.getName());
+					fields.filter(fieldInfo -> fieldInfo.hasAnnotation(FieldBinding.class.getName())).forEach(fieldInfo -> {
+							AnnotationInfo info = fieldInfo.getAnnotationInfo(FieldBinding.class.getName());
 							String fieldBinding = (String)info.getParameterValues().get("binding");
 							String converterId = (String)info.getParameterValues().get("converter");
 							MappingDirection direction = (MappingDirection)((AnnotationEnumValue)info.getParameterValues().get("direction")).loadClassAndReturnEnumValue();
-							logger.debug("Binding [" + t.getName() + "] versus [" + fieldBinding + "]");
-							FieldMapBuilder<?, ?> fieldBuilder = builder.fieldMap(t.getName(), fieldBinding);
+							logger.debug("Binding [" + fieldInfo.getName() + "] versus [" + fieldBinding + "]");
+							FieldMapBuilder<?, ?> fieldBuilder = builder.fieldMap(fieldInfo.getName(), fieldBinding);
 							switch(direction) {
 								case A_TO_B:
 									fieldBuilder.aToB();
@@ -105,8 +86,6 @@ public class BeanMapper {
 							if(StringUtils.isNotBlank(converterId))
 								fieldBuilder.converter(converterId);
 							fieldBuilder.add();
-						}
-						
 					});
 					if(!customizerClass.getName().equals(CustomMapper.class.getName()))
 						builder.customize((Mapper)Class.forName(customizerClass.getName()).newInstance());
