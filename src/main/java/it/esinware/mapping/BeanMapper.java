@@ -2,99 +2,82 @@ package it.esinware.mapping;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.SortedMap;
 import java.util.SortedSet;
+import java.util.TreeMap;
 import java.util.TreeSet;
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import io.github.classgraph.AnnotationClassRef;
-import io.github.classgraph.AnnotationEnumValue;
-import io.github.classgraph.AnnotationInfo;
-import io.github.classgraph.AnnotationParameterValueList;
-import io.github.classgraph.ClassGraph;
-import io.github.classgraph.ClassInfo;
-import io.github.classgraph.ClassInfoList;
-import io.github.classgraph.FieldInfoList;
-import io.github.classgraph.ScanResult;
+import it.esinware.mapping.annotation.FieldBinding;
+import it.esinware.mapping.config.BeanWrapper;
+import it.esinware.mapping.config.MappingResolver;
+import it.esinware.mapping.orika.PlaceholderConverter;
+import it.esinware.mapping.orika.PlaceholderMapper;
 import ma.glasnost.orika.Converter;
-import ma.glasnost.orika.CustomMapper;
 import ma.glasnost.orika.Mapper;
 import ma.glasnost.orika.MapperFactory;
 import ma.glasnost.orika.impl.DefaultMapperFactory;
 import ma.glasnost.orika.metadata.ClassMapBuilder;
 import ma.glasnost.orika.metadata.FieldMapBuilder;
-import ma.glasnost.orika.metadata.MappingDirection;
 
 public class BeanMapper {
 
 	private static Logger logger = LoggerFactory.getLogger(BeanMapper.class);
 	private MapperFactory factory;
-	private ScanResult classes;
+	private MappingResolver resolver;
 	
 	public BeanMapper() {
 		factory = new DefaultMapperFactory.Builder().build();
 		factory.registerConcreteType(SortedSet.class, TreeSet.class);
-		classes = new ClassGraph().enableAllInfo().whitelistClasses().scan();
-		registerConverters();
-		init();
+		factory.registerConcreteType(SortedMap.class, TreeMap.class);
+		resolver = new MappingResolver();
+		configure(resolver.getConverters());
+		config(resolver.getBeans());
 	}
 	
-	private void registerConverters() {
-//		// Find for all custom converters annotated with MappingConverter
-		ClassInfoList list = classes.getClassesWithAnnotation(MappingConverter.class.getName());
-		for(ClassInfo classInfo : list) {
-			AnnotationInfo annotationInfo = classInfo.getAnnotationInfo(MappingConverter.class.getName());
-			String converterId = (String)annotationInfo.getParameterValues().get("value");
+	private void configure(Map<Class<?>, String> converters) {
+		converters.keySet().forEach(converter -> {
 			try {
-				factory.getConverterFactory().registerConverter(converterId, (Converter<?, ?>)classInfo.loadClass().newInstance());
+				factory.getConverterFactory().registerConverter(converters.get(converter), (Converter<?, ?>)converter.newInstance());
 			} catch(InstantiationException | IllegalAccessException e) {
 				logger.error(e.getLocalizedMessage(), e);
 			}
-		}
+		});
 	}
 	
-	@SuppressWarnings({"unchecked", "rawtypes"})
-	private void init() {
-		ClassInfoList routeClassInfoList = classes.getClassesWithAnnotation(TypeBinding.class.getName());
-		for(ClassInfo routeClassInfo : routeClassInfoList) {
-			// Get the Route annotation on the class
-			AnnotationInfo annotationInfo = routeClassInfo.getAnnotationInfo(TypeBinding.class.getName());
-			if(annotationInfo != null) {
-				AnnotationParameterValueList annotationParamVals = annotationInfo.getParameterValues();
-				AnnotationClassRef bindingClass = (AnnotationClassRef)annotationParamVals.get("binding");
-				AnnotationClassRef customizerClass = (AnnotationClassRef)annotationParamVals.get("customizer");
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	private void config(List<BeanWrapper> beans) {
+		beans.forEach(bean -> {
+			ClassMapBuilder<?, ?> builder = factory.classMap(bean.getSourceClass(), bean.getTargetClass());
+			if(!bean.getCustomizer().equals(PlaceholderMapper.class)) {
 				try {
-					ClassMapBuilder<?, ?> builder = factory.classMap(Class.forName(routeClassInfo.getName()), Class.forName(bindingClass.getName()));
-					FieldInfoList fields = routeClassInfo.getDeclaredFieldInfo();
-					fields.filter(fieldInfo -> fieldInfo.hasAnnotation(FieldBinding.class.getName())).forEach(fieldInfo -> {
-							AnnotationInfo info = fieldInfo.getAnnotationInfo(FieldBinding.class.getName());
-							String fieldBinding = (String)info.getParameterValues().get("binding");
-							String converterId = (String)info.getParameterValues().get("converter");
-							MappingDirection direction = (MappingDirection)((AnnotationEnumValue)info.getParameterValues().get("direction")).loadClassAndReturnEnumValue();
-							logger.debug("Binding [" + fieldInfo.getName() + "] versus [" + fieldBinding + "]");
-							FieldMapBuilder<?, ?> fieldBuilder = builder.fieldMap(fieldInfo.getName(), fieldBinding);
-							switch(direction) {
-								case A_TO_B:
-									fieldBuilder.aToB();
-									break;
-								case B_TO_A:
-									fieldBuilder.bToA();
-									break;
-								case BIDIRECTIONAL:
-									//Nothing to do
-							}
-							if(StringUtils.isNotBlank(converterId))
-								fieldBuilder.converter(converterId);
-							fieldBuilder.add();
-					});
-					if(!customizerClass.getName().equals(CustomMapper.class.getName()))
-						builder.customize((Mapper)Class.forName(customizerClass.getName()).newInstance());
-					builder.byDefault().register();
-				} catch(ClassNotFoundException | InstantiationException | IllegalAccessException e) {
+					builder.customize((Mapper)bean.getCustomizer().newInstance());
+				} catch(InstantiationException | IllegalAccessException e) {
 					logger.error(e.getLocalizedMessage(), e);
 				}
 			}
-		}
+			Map<String, FieldBinding> bindings = bean.getFieldBindings();
+			bindings.keySet().forEach(bindingName -> {
+				FieldBinding binding = bindings.get(bindingName);
+				FieldMapBuilder<?, ?> fieldBuilder = builder.fieldMap(bindingName, binding.binding());
+				switch(binding.direction()) {
+					case A_TO_B:
+						fieldBuilder.aToB();
+						break;
+					case B_TO_A:
+						fieldBuilder.bToA();
+						break;
+					case BIDIRECTIONAL:
+						//Nothing to do
+				}
+				if(!binding.converter().equals(PlaceholderConverter.class))
+					fieldBuilder.converter(resolver.getConverters().get(binding.converter()));
+				fieldBuilder.add();
+			});
+			bean.getFieldsExcluded().forEach(builder::exclude);
+			builder.byDefault().register();
+		});
 	}
 	
 	public <S, D> void map(S source, D destination) {
@@ -106,9 +89,9 @@ public class BeanMapper {
 	}
 	
 	public <S, D> List<D> map(List<S> sources, Class<S> source, Class<D> destination) {
-		List<D> result = new ArrayList<D>();
+		List<D> result = new ArrayList<>();
 		for(S s : sources)
-			result.add(factory.getMapperFacade().map(s, destination));
+			result.add(this.map(s, destination));
 		return result;
 	}
 }

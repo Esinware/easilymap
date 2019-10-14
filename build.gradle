@@ -15,6 +15,11 @@ dependencies {
 	compile group: 'io.github.classgraph', name: 'classgraph', version: '4.4.12'
 	compile group: 'ma.glasnost.orika', name: 'orika-core', version: '1.5.2'
 	compile group: 'org.apache.commons', name: 'commons-text', version: '1.6'
+	
+  testCompile 'junit:junit:4.12'
+	testCompile group: 'org.junit.jupiter', name: 'junit-jupiter-api', version: '5.4.0'
+	testRuntime group: 'org.junit.jupiter', name: 'junit-jupiter-engine', version: '5.4.0'
+	testRuntime group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.3'
 }
 
 jar {
@@ -24,7 +29,7 @@ jar {
 
 def libraryGroupId = 'it.esinware.utility'
 def libraryArtifactId = 'mapping'
-def libraryVersion = '0.0.1'
+def libraryVersion = '0.1.0'
 
 publishing {
     publications {
