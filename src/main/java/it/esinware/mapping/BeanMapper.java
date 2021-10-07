@@ -31,6 +31,9 @@ public class BeanMapper {
 		factory = new DefaultMapperFactory.Builder().build();
 		factory.registerConcreteType(SortedSet.class, TreeSet.class);
 		factory.registerConcreteType(SortedMap.class, TreeMap.class);
+
+
+
 		resolver = new MappingResolver();
 		configure(resolver.getConverters());
 		config(resolver.getBeans());
