@@ -1,61 +1,112 @@
-plugins {
-  id "com.jfrog.artifactory" version "4.9.6"
-}
-
 apply plugin: 'java'
+apply plugin: 'maven'
 apply plugin: 'maven-publish'
-apply plugin: 'com.jfrog.artifactory'
+apply plugin: 'signing'
 
 repositories {
 	mavenCentral()
-	jcenter()
+	mavenLocal()
 }
 
 dependencies {
-	compile group: 'io.github.classgraph', name: 'classgraph', version: '4.4.12'
-	compile group: 'ma.glasnost.orika', name: 'orika-core', version: '1.5.2'
-	compile group: 'org.apache.commons', name: 'commons-text', version: '1.6'
+	implementation group: 'io.github.classgraph', name: 'classgraph', version: '4.4.12'
+	implementation group: 'ma.glasnost.orika', name: 'orika-core', version: '1.5.2'
+	implementation group: 'org.apache.commons', name: 'commons-text', version: '1.6'
 	
-  testCompile 'junit:junit:4.12'
-	testCompile group: 'org.junit.jupiter', name: 'junit-jupiter-api', version: '5.4.0'
-	testRuntime group: 'org.junit.jupiter', name: 'junit-jupiter-engine', version: '5.4.0'
-	testRuntime group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.3'
+  	testImplementation group: 'org.junit.jupiter', name: 'junit-jupiter-api', version: '5.7.2'
+	testImplementation group: 'org.junit.jupiter', name: 'junit-jupiter-engine', version: '5.7.2'
+	testImplementation group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.3'
 }
 
 jar {
-	from sourceSets.main.output
-	from sourceSets.main.allJava
+	manifest {
+		attributes(
+			'Created-By': "Gradle ${gradle.gradleVersion}",
+            'Build-Jdk': "${System.properties['java.version']} (${System.properties['java.vendor']} ${System.properties['java.vm.version']})"
+		)
+	}
 }
-
-def libraryGroupId = 'it.esinware.utility'
-def libraryArtifactId = 'mapping'
-def libraryVersion = '0.1.0'
+/*
+group = "it.esinware"
+archivesBaseName = "mapply"
+version = "0.0.1.jdk8"
 
 publishing {
     publications {
         jar(MavenPublication) {
         	from components.java
-          groupId libraryGroupId
-          version libraryVersion
-          artifactId libraryArtifactId
+          groupId group
+          version version
+          artifactId archivesBaseName
           //artifact("$buildDir/publications/jar/${artifactId}-release.jar")
         }
     }
 }
+*/
+task javadocJar(type: Jar) {
+    classifier = 'javadoc'
+    from javadoc
+}
 
-artifactory {
-    contextUrl = 'http://camerassoes-test.intra.camera.it:8081/artifactory'
-    publish {
-        repository {
-            repoKey = 'Esinware'
-            username = artifactory_username
-            password = artifactory_password
+task sourcesJar(type: Jar) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+
+artifacts {
+    archives javadocJar, sourcesJar
+}
+
+signing {
+    sign configurations.archives
+}
+
+uploadArchives {
+  repositories {
+    mavenDeployer {
+      beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+
+      repository(url: "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/") {
+        authentication(userName: project.properties['oss.username'], password: project.properties['oss.password'])
+      }
+
+      snapshotRepository(url: "https://s01.oss.sonatype.org/content/repositories/snapshots/") {
+        authentication(userName: project.properties['oss.username'], password: project.properties['oss.password'])
+      }
+
+      pom.project {
+        name 'mapply'
+        packaging 'jar'
+        // optionally artifactId can be defined here
+        description 'Annotated mapping for different beans.'
+        url 'https://github.com/Esinware/mapply'
+
+        scm {
+          connection 'scm:git:git:github.com/Esinware/mapply.git'
+          developerConnection 'scm:git:ssh:github.com:Esinware/mapply.git'
+          url 'https://github.com/Esinware/mapply'
         }
-        defaults {
-            publications('jar')
-            publishArtifacts = true
-            properties = ['qa.level': 'basic', 'q.os': 'java', 'dev.team': 'core']
-            publishPom = true
+
+        licenses {
+          license {
+            name 'The Apache License, Version 2.0'
+            url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+          }
         }
+
+        developers {
+          developer {
+            id 'raffaele'
+            name 'Raffaele Specia'
+            email 'r.specia@esinware.it'
+          }
+          developer {
+            id 'manuel'
+            name 'Manuel Corini'
+            email 'm.corini@esinware.it'
+          }
+        }
+      }
     }
+  }
 }
