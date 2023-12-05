@@ -5,16 +5,19 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 import it.esinware.mapping.annotation.FieldBinding;
 import it.esinware.mapping.annotation.FieldOverride;
 import it.esinware.mapping.annotation.Fields;
 import it.esinware.mapping.annotation.TypeBinding;
-import ma.glasnost.orika.CustomMapper;
+import it.esinware.mapping.customize.MapplyInstanceFactory;
+import it.esinware.mapping.customize.MapplyTypeMapper;
 
 public class BeanWrapper {
 
 	private String typeId;
-	private Class<? extends CustomMapper<?, ?>> customizer;
+	private Class<? extends MapplyTypeMapper<?, ?>> customizer;
+	private Class<? extends MapplyInstanceFactory<?>> factory;
 	private Map<String, FieldBinding> fieldOverrides;
 	private List<String> fieldsExcluded;
 	private Map<String, FieldBinding> fieldBindings;
@@ -33,6 +36,7 @@ public class BeanWrapper {
 		typeId = binding.typeId();
 		targetClass = binding.binding();
 		customizer = binding.customizer();
+		factory = binding.factory();
 		fieldsExcluded = Arrays.asList(binding.excludes());
 		FieldOverride[] overrides = binding.overrides();
 		fieldOverrides = new HashMap<>();
@@ -62,7 +66,7 @@ public class BeanWrapper {
 			}
 		}
 	}
-	
+
 	private FieldBinding findBinding(Field field) {
 		FieldBinding binding = field.getAnnotation(FieldBinding.class);
 		if(binding == null) {
@@ -78,8 +82,12 @@ public class BeanWrapper {
 		return binding;
 	}
 
-	public Class<? extends CustomMapper<?, ?>> getCustomizer() {
+	public Class<? extends MapplyTypeMapper<?, ?>> getCustomizer() {
 		return customizer;
+	}
+
+	public Class<? extends MapplyInstanceFactory<?>> getFactory() {
+		return factory;
 	}
 
 	public List<String> getFieldsExcluded() {

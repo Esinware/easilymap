@@ -1,7 +1,17 @@
+plugins {
+	id "io.github.gradle-nexus.publish-plugin" version "1.1.0"
+}
 apply plugin: 'java'
-apply plugin: 'maven'
+//apply plugin: 'maven'
 apply plugin: 'maven-publish'
 apply plugin: 'signing'
+
+group = project.properties['group']
+archivesBaseName = project.properties['archivesBaseName']
+version = project.properties['version']
+
+sourceCompatibility = JavaVersion.VERSION_11
+targetCompatibility = JavaVersion.VERSION_11
 
 repositories {
 	mavenCentral()
@@ -10,10 +20,11 @@ repositories {
 
 dependencies {
 	implementation group: 'io.github.classgraph', name: 'classgraph', version: '4.4.12'
-	implementation group: 'ma.glasnost.orika', name: 'orika-core', version: '1.5.2'
+	implementation group: 'ma.glasnost.orika', name: 'orika-core', version: '1.5.4'
 	implementation group: 'org.apache.commons', name: 'commons-text', version: '1.6'
+	implementation group: 'org.burningwave', name: 'core', version: '12.62.7'
 	
-  	testImplementation group: 'org.junit.jupiter', name: 'junit-jupiter-api', version: '5.7.2'
+  testImplementation group: 'org.junit.jupiter', name: 'junit-jupiter-api', version: '5.7.2'
 	testImplementation group: 'org.junit.jupiter', name: 'junit-jupiter-engine', version: '5.7.2'
 	testImplementation group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.3'
 }
@@ -26,41 +37,81 @@ jar {
 		)
 	}
 }
-/*
-group = "it.esinware"
-archivesBaseName = "mapply"
-version = "0.0.1.jdk8"
 
-publishing {
-    publications {
-        jar(MavenPublication) {
-        	from components.java
-          groupId group
-          version version
-          artifactId archivesBaseName
-          //artifact("$buildDir/publications/jar/${artifactId}-release.jar")
-        }
-    }
-}
-*/
 task javadocJar(type: Jar) {
     classifier = 'javadoc'
     from javadoc
 }
 
 task sourcesJar(type: Jar) {
-    classifier = 'sources'
-    from sourceSets.main.allSource
+  from sourceSets.main.allJava
+  archiveClassifier = "sources"
 }
 
 artifacts {
     archives javadocJar, sourcesJar
 }
 
-signing {
-    sign configurations.archives
+publishing {
+    publications {
+        jar(MavenPublication) {
+        	from components.java
+        	artifact sourcesJar
+        	artifact javadocJar
+      		pom {
+		        name = 'mapply'
+		        //packaging 'jar'
+		        // optionally artifactId can be defined here
+		        description = 'Annotated mapping for different beans.'
+		        url = 'https://github.com/Esinware/mapply'
+		
+		        scm {
+		          connection = 'scm:git:git:github.com/Esinware/mapply.git'
+		          developerConnection = 'scm:git:ssh:github.com:Esinware/mapply.git'
+		          url = 'https://github.com/Esinware/mapply'
+		        }
+		
+		        licenses {
+		          license {
+		            name = 'The Apache License, Version 2.0'
+		            url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+		          }
+		        }
+		
+		        developers {
+		          developer {
+		            id = 'raffaele'
+		            name = 'Raffaele Specia'
+		            email = 'r.specia@esinware.it'
+		          }
+		          developer {
+		            id = 'manuel'
+		            name = 'Manuel Corini'
+		            email = 'm.corini@esinware.it'
+		          }
+		        }
+      		}
+        }
+    }
 }
 
+signing {
+    sign publishing.publications.jar
+    //sign configurations.archives
+}
+
+nexusPublishing {
+    repositories {
+        myNexus {
+            nexusUrl = uri("https://s01.oss.sonatype.org/service/local/")
+            snapshotRepositoryUrl = uri("https://s01.oss.sonatype.org/content/repositories/snapshots/")
+            username = project.properties['oss.username']
+            password = project.properties['oss.password']
+        }
+    }
+}
+
+/*
 uploadArchives {
   repositories {
     mavenDeployer {
@@ -110,3 +161,4 @@ uploadArchives {
     }
   }
 }
+*/

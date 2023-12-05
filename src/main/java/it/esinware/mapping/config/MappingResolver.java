@@ -11,15 +11,16 @@ import io.github.classgraph.ClassGraph;
 import io.github.classgraph.ClassInfo;
 import io.github.classgraph.ClassInfoList;
 import io.github.classgraph.ScanResult;
-import it.esinware.mapping.annotation.Mapping;
+import it.esinware.mapping.annotation.Mapply;
 import it.esinware.mapping.annotation.MappingConverter;
 import it.esinware.mapping.annotation.TypeBinding;
+import it.esinware.mapping.customize.MapplyFieldConverter;
 
 public class MappingResolver {
 
 	private static Logger logger = LoggerFactory.getLogger(MappingResolver.class);
 	private List<BeanWrapper> beans;
-	private Map<Class<?>, String> converters;
+	private Map<Class<? extends MapplyFieldConverter<?, ?>>, String> converters;
 	private ScanResult classes;
 	
 	public MappingResolver() {
@@ -35,26 +36,30 @@ public class MappingResolver {
 		return this.beans;
 	}
 	
-	public Map<Class<?>, String> getConverters() {
+	public Map<Class<? extends MapplyFieldConverter<?, ?>>, String> getConverters() {
 		return converters;
 	}
 	
+	@SuppressWarnings("unchecked")
 	private void registerConverters() {
 		// Find for all custom converters annotated with MappingConverter
 		ClassInfoList list = classes.getClassesWithAnnotation(MappingConverter.class.getName());
 		for(ClassInfo classInfo : list) {
-			AnnotationInfo annotationInfo = classInfo.getAnnotationInfo(MappingConverter.class.getName());
-			String converterId = annotationInfo != null && !((String)annotationInfo.getParameterValues().get("value")).isEmpty() ? (String)annotationInfo.getParameterValues().get("value") : classInfo.getName();
-			converters.put(classInfo.loadClass(), converterId);
-			logger.debug("Converter added {}", converterId);
+			Class<?> concreteClass = classInfo.loadClass();
+			if(MapplyFieldConverter.class.isAssignableFrom(concreteClass)) {
+				AnnotationInfo annotationInfo = classInfo.getAnnotationInfo(MappingConverter.class.getName());
+				String converterId = annotationInfo != null && !((String)annotationInfo.getParameterValues().get("value")).isEmpty() ? (String)annotationInfo.getParameterValues().get("value") : classInfo.getName();
+				converters.put((Class<? extends MapplyFieldConverter<?, ?>>)concreteClass, converterId);
+				logger.debug("Converter added {}", converterId);
+			}
 		}
 	}
 	
 	private void loadMultiple() {
-		ClassInfoList classInfoList = classes.getClassesWithAnnotation(Mapping.class.getName());
+		ClassInfoList classInfoList = classes.getClassesWithAnnotation(Mapply.class.getName());
 		for(ClassInfo classInfo : classInfoList) {
 			Class<?> clazz = classInfo.loadClass();
-			Mapping container = clazz.getAnnotation(Mapping.class);
+			Mapply container = clazz.getAnnotation(Mapply.class);
 			for(TypeBinding binding : container.value()) {
 				BeanWrapper wrapper = new BeanWrapper(clazz, binding);
 				this.beans.add(wrapper);
