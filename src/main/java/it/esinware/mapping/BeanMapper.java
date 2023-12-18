@@ -1,14 +1,17 @@
 package it.esinware.mapping;
 
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import it.esinware.mapping.annotation.FieldBinding;
 import it.esinware.mapping.config.BeanWrapper;
 import it.esinware.mapping.config.MappingResolver;
@@ -91,10 +94,13 @@ public class BeanMapper {
 		return factory.getMapperFacade().map(source, destination);
 	}
 	
-	public <S, D> List<D> map(List<S> sources, Class<S> source, Class<D> destination) {
-		List<D> result = new ArrayList<>();
-		for(S s : sources)
-			result.add(this.map(s, destination));
-		return result;
+	public <S, D> Collection<D> map(Collection<S> sources, Class<D> destination) {
+		if(sources instanceof List)
+			return factory.getMapperFacade().mapAsList(sources, destination);
+		else if(sources instanceof Set) {
+			return factory.getMapperFacade().mapAsSet(sources, destination);
+		} else {
+			return factory.getMapperFacade().mapAsList(sources, destination);
+		}
 	}
 }
